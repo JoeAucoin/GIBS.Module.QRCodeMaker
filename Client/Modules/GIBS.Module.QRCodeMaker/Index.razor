@@ -1,0 +1,353 @@
+@using System.Text.Json
+@using QRCoder
+@using static QRCoder.PayloadGenerator;
+@using GIBS.Module.QRCodeMaker.Services
+@using GIBS.Module.QRCodeMaker.Models
+@using System.Text
+@using System.Linq
+@using System.Drawing
+
+@namespace GIBS.Module.QRCodeMaker
+@inherits ModuleBase
+@inject IQRCodeMakerService QRCodeMakerService
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<Index> Localizer
+
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8">
+            <form @ref="form" class="@(validated ? " was-validated" : "needs-validation")" novalidate>
+                @* --- QR Code Generation Form --- *@
+                <div class="mb-3">
+                    <label class="form-label">Create a Friendly Name For Your QR Code:</label>
+                    <input class="form-control" @bind="_newQRCodeMaker.Name" required />
+                </div>
+
+                <div class="row mb-1 align-items-center">
+                    <Label Class="col-sm-3" For="qR_Color" HelpText="Select a color for the QR Code." ResourceKey="Label.QR_Color">QR Code Color: </Label>
+                    <div class="col-sm-9">
+                        <input id="qR_Color" type="color" class="form-control" @bind="@_newQRCodeMaker.QR_Color" />
+                    </div>
+                </div>
+
+                <div class="row mb-1 align-items-center">
+                    <Label Class="col-sm-3" For="qR_BackgroundColor" HelpText="Select a color for the QR Background." ResourceKey="Label.QR_BackgroundColor">QR Background Color: </Label>
+                    <div class="col-sm-9">
+                        <input id="qR_BackgroundColor" type="color" class="form-control" @bind="@_newQRCodeMaker.QR_BackgroundColor" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Select QR Code Type:</label>
+                    <select class="form-select" @onchange="OnQRTypeChanged" value="@_newQRCodeMaker.QR_CodeType">
+                        <option value="">-- Select QR Code Type --</option>
+                        <option value="VCard">VCard - Virtual Business Card</option>
+                        <option value="vEvent">Calendar Event</option>
+                        <option value="GoogleReview">Google Business Review or Business Map</option>
+                        <option value="WiFi">WiFi Credentials</option>
+                        <option value="Email">E-Mail Message</option>
+                        <option value="URL">Simple URL</option>
+                        <option value="Text">Basic Text</option>
+                    </select>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_newQRCodeMaker.QR_CodeType))
+                {
+                    @* --- Dynamic Panels --- *@
+                    @if (_newQRCodeMaker.QR_CodeType == "VCard")
+                    {
+                        <fieldset>
+                            <h3>Create Your QR Code Business vCard</h3>
+                            <div class="mb-3"><label>First Name:</label><input class="form-control" @bind="_vCard.FirstName" required /></div>
+                            <div class="mb-3"><label>Last Name:</label><input class="form-control" @bind="_vCard.LastName" required /></div>
+                            <div class="mb-3"><label>Cell Phone:</label><input class="form-control" @bind="_vCard.CellPhone" /></div>
+                            <div class="mb-3"><label>Work Phone:</label><input class="form-control" @bind="_vCard.WorkPhone" /></div>
+                            <div class="mb-3"><label>Email:</label><input class="form-control" @bind="_vCard.Email" /></div>
+                            <div class="mb-3"><label>Street:</label><input class="form-control" @bind="_vCard.Street" /></div>
+                            <div class="mb-3"><label>City:</label><input class="form-control" @bind="_vCard.City" /></div>
+                            <div class="mb-3"><label>State:</label><input class="form-control" @bind="_vCard.State" /></div>
+                            <div class="mb-3"><label>Zip:</label><input class="form-control" @bind="_vCard.Zip" /></div>
+                            <div class="mb-3"><label>Website:</label><input class="form-control" @bind="_vCard.Website" /></div>
+                            <div class="mb-3"><label>Company:</label><input class="form-control" @bind="_vCard.Business" /></div>
+                            <div class="mb-3"><label>Title:</label><input class="form-control" @bind="_vCard.Title" /></div>
+                        </fieldset>
+                    }
+                    else if (_newQRCodeMaker.QR_CodeType == "WiFi")
+                    {
+                        <fieldset>
+                            <h3>Create Your WiFi Credentials QR Code</h3>
+                            <div class="mb-3"><label>WiFi SSID:</label><input class="form-control" @bind="_wifi.SSID" required /></div>
+                            <div class="mb-3"><label>WiFi Password:</label><input class="form-control" @bind="_wifi.Password" required /></div>
+                            <div class="mb-3"><label>Authentication Mode:</label><input class="form-control" @bind="_wifi.Authentication" /></div>
+                        </fieldset>
+                    }
+                    else if (_newQRCodeMaker.QR_CodeType == "vEvent")
+                    {
+                        <fieldset>
+                            <h3>Create Your QR Code Calendar Event</h3>
+                            <div class="mb-3"><label>Event Name:</label><input class="form-control" @bind="_vEvent.EventName" required /></div>
+                            <div class="mb-3"><label>Description:</label><textarea class="form-control" @bind="_vEvent.Description"></textarea></div>
+                            <div class="mb-3"><label>Start:</label><input type="datetime-local" class="form-control" @bind="_vEvent.StartDate" required /></div>
+                            <div class="mb-3"><label>End:</label><input type="datetime-local" class="form-control" @bind="_vEvent.EndDate" required /></div>
+                            <div class="mb-3"><label class="form-check-label"><input type="checkbox" class="form-check-input" @bind="_vEvent.AllDayEvent" /> All Day Event</label></div>
+                            <div class="mb-3"><label>Event Location:</label><input class="form-control" @bind="_vEvent.Location" /></div>
+                        </fieldset>
+                    }
+                    else if (_newQRCodeMaker.QR_CodeType == "Email")
+                    {
+                        <fieldset>
+                            <h3>Create Your QR Code Email Link</h3>
+                            <div class="mb-3"><label>E-Mail Address:</label><input class="form-control" @bind="_email.Address" required /></div>
+                            <div class="mb-3"><label>Subject:</label><input class="form-control" @bind="_email.Subject" /></div>
+                            <div class="mb-3"><label>Message:</label><textarea class="form-control" @bind="_email.Message"></textarea></div>
+                        </fieldset>
+                    }
+                    else if (_newQRCodeMaker.QR_CodeType == "GoogleReview")
+                    {
+                        <fieldset>
+                            <h3>Create Your Google Business Review or Google Maps QR Code</h3>
+                            <div class="mb-3"><label>Google Place ID:</label><input class="form-control" @bind="_googleReview.PlaceID" required /></div>
+                            <p>
+                                Are you looking for the place ID of a specific Place or Business? Use the
+                                <a href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder" target="_blank">Google Place ID Finder</a> to
+                                search for your place/business and get your
+                                <a href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder" target="_blank">Google Place ID</a>.
+                                Return to this page with the Google Place ID.
+                            </p>
+                            <div class="mb-3">
+                                <label>Type:</label>
+                                <select class="form-select" @bind="_googleReview.CodeType">
+                                    <option value="Review">Review Request</option>
+                                    <option value="Map">Business Map</option>
+                                </select>
+                            </div>
+                        </fieldset>
+                    }
+
+                    else if (_newQRCodeMaker.QR_CodeType == "URL")
+                    {
+                        <fieldset>
+                            <h3>Create a Basic URL QR Code</h3>
+                            <div class="mb-3"><label>URL:</label><input class="form-control" @bind="_url.URL" required /></div>
+
+                        </fieldset>
+                    }
+
+                    else if (_newQRCodeMaker.QR_CodeType == "Text")
+                    {
+                        <fieldset>
+                            <h3>Create a Basic Text QR Code</h3>
+
+                            <div class="mb-3"><label>Text:</label><textarea class="form-control" @bind="_text.Text" required></textarea></div>
+
+                        </fieldset>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Add Some (Optional) Notes to your Record:</label>
+                        <textarea class="form-control" @bind="_newQRCodeMaker.Notes"></textarea>
+                    </div>
+
+                    <button type="button" class="btn btn-primary" @onclick="GenerateAndSaveQRCode">Generate Your QR Code</button>
+                }
+            </form>
+        </div>
+        <div class="col-md-4">
+            @* --- QR Code Display --- *@
+            @if (!string.IsNullOrEmpty(_newQRCodeMaker.ImageURL))
+            {
+                <div class="text-center">
+                    <img src="@_newQRCodeMaker.ImageURL" width="250" />
+                    <p>
+                        <a href="@_newQRCodeMaker.ImageURL" download="qrcode.png" class="btn btn-secondary mt-2">Download</a>
+                    </p>
+                </div>
+            }
+        </div>
+    </div>
+    <hr class="my-4" />
+    <div style="width:100%; text-align:right;"><ActionLink Action="Edit" Security="SecurityAccessLevel.Edit" Class="btn btn-secondary mb-3" Text="View Records" ResourceKey="ViewRecords" /></div>
+
+</div>
+
+@code {
+
+    public override string RenderMode => RenderModes.Interactive;
+
+    public override List<Resource> Resources => new List<Resource>()
+    {
+        new Resource { ResourceType = ResourceType.Stylesheet, Url = ModulePath() + "Module.css" },
+        new Resource { ResourceType = ResourceType.Script, Url = ModulePath() + "Module.js" }
+    };
+
+    private ElementReference form;
+    private bool validated = false;
+
+    private Models.QRCodeMaker _newQRCodeMaker = new();
+   
+    // Models for form data
+    private VCardModel _vCard = new();
+    private WiFiModel _wifi = new() { Authentication = "WPA" };
+    private VEventModel _vEvent = new();
+    private EmailModel _email = new();
+    private GoogleReviewModel _googleReview = new() { CodeType = "Review" };
+    private URLModel _url = new();
+    private TextModel _text = new();
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _newQRCodeMaker = new Models.QRCodeMaker { ModuleId = ModuleState.ModuleId, QR_CodeType = "" };
+            //Set Default Colors
+            _newQRCodeMaker.QR_Color = "#000000"; // Default color
+            _newQRCodeMaker.QR_BackgroundColor = "#FFFFFF"; // Default background color
+            ResetForm();
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Initializing Module {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+        }
+    }
+
+    private void ResetForm()
+    {
+        //_newQRCodeMaker = new Models.QRCodeMaker { ModuleId = ModuleState.ModuleId, QR_CodeType = "" };
+        _vCard = new();
+        _wifi = new() { Authentication = "WPA" };
+        _vEvent = new();
+        _email = new();
+        _googleReview = new() { CodeType = "Review" };
+        _url = new();
+        _text = new();
+      
+       
+
+        validated = false;
+    }
+
+    private void OnQRTypeChanged(ChangeEventArgs e)
+    {
+        var selectedType = e.Value?.ToString() ?? "";
+        var currentName = _newQRCodeMaker.Name; // Preserve the current name
+
+        ResetForm(); // Reset all other fields
+
+        _newQRCodeMaker.QR_CodeType = selectedType;
+        _newQRCodeMaker.Name = currentName; // Restore the name
+
+        if (!string.IsNullOrEmpty(selectedType) && string.IsNullOrWhiteSpace(_newQRCodeMaker.Name))
+        {
+            _newQRCodeMaker.Name = "New - " + selectedType;
+        }
+    }
+
+    private async Task GenerateAndSaveQRCode()
+    {
+        try
+        {
+            validated = true;
+            var interop = new Oqtane.UI.Interop(JSRuntime);
+            if (await interop.FormValid(form))
+            {
+                string payload = "";
+                object contentModel = null;
+
+                switch (_newQRCodeMaker.QR_CodeType)
+                {
+                    case "VCard":
+                        payload = $"BEGIN:VCARD\nVERSION:3.0\nFN:{_vCard.FirstName} {_vCard.LastName}\nTEL;TYPE=CELL:{_vCard.CellPhone}\nTEL;TYPE=WORK:{_vCard.WorkPhone}\nEMAIL:{_vCard.Email}\nADR;TYPE=WORK:;;{_vCard.Street};{_vCard.City};{_vCard.State};{_vCard.Zip};\nURL:{_vCard.Website}\nORG:{_vCard.Business}\nTITLE:{_vCard.Title}\nEND:VCARD";
+                        contentModel = _vCard;
+                        break;
+                    case "WiFi":
+                        payload = $"WIFI:S:{_wifi.SSID};T:{_wifi.Authentication};P:{_wifi.Password};;";
+                        contentModel = _wifi;
+                        break;
+                    case "vEvent":
+                        payload = $"BEGIN:VEVENT\nSUMMARY:{_vEvent.EventName}\nDESCRIPTION:{_vEvent.Description}\nLOCATION:{_vEvent.Location}\nDTSTART:{_vEvent.StartDate:yyyyMMddTHHmmss}\nDTEND:{_vEvent.EndDate:yyyyMMddTHHmmss}\nEND:VEVENT";
+                        contentModel = _vEvent;
+                        break;
+                    case "Email":
+                        payload = $"mailto:{_email.Address}?subject={_email.Subject}&body={_email.Message}";
+                        contentModel = _email;
+                        break;
+                    case "GoogleReview":
+                        payload = _googleReview.CodeType == "Review"
+                            ? $"https://search.google.com/local/writereview?placeid={_googleReview.PlaceID}"
+                            : $"https://www.google.com/maps/search/?api=1&query=Google&query_place_id={_googleReview.PlaceID}";
+                        contentModel = _googleReview;
+                        break;
+                    case "URL":
+                        payload = $"{_url.URL}";
+                        contentModel = _url;
+                        break;
+                    case "Text":
+                        payload = $"{_text.Text}";
+                        contentModel = _text;
+                        break;
+                }
+
+                if (!string.IsNullOrEmpty(payload))
+                {
+                    using var qrGenerator = new QRCodeGenerator();
+                    using var qrCodeData = qrGenerator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
+                    using var qrCode = new PngByteQRCode(qrCodeData);
+                    var darkColor = ColorTranslator.FromHtml(_newQRCodeMaker.QR_Color);
+                    var lightColor = ColorTranslator.FromHtml(_newQRCodeMaker.QR_BackgroundColor);
+                    var qrCodeBytes = qrCode.GetGraphic(20, darkColor, lightColor);
+                    var imageUrl = "data:image/png;base64," + Convert.ToBase64String(qrCodeBytes);
+                    var contentJson = JsonSerializer.Serialize(contentModel);
+
+                    // Create a new entity for saving to ensure it's a fresh insert
+                    var qrCodeToSave = new Models.QRCodeMaker
+                    {
+                        Name = _newQRCodeMaker.Name,
+                        QR_CodeType = _newQRCodeMaker.QR_CodeType,
+                        Notes = _newQRCodeMaker.Notes,
+                        QR_Color = _newQRCodeMaker.QR_Color,
+                        QR_BackgroundColor = _newQRCodeMaker.QR_BackgroundColor,
+                        ImageURL = imageUrl,
+                        ContentData = contentJson,
+                        ModuleId = ModuleState.ModuleId,
+                        CreatedBy = ModuleState.CreatedBy,
+                        CreatedOn = DateTime.UtcNow,
+                        ModifiedBy = ModuleState.CreatedBy,
+                        ModifiedOn = DateTime.UtcNow
+                    };
+
+                    // Save the new entity
+                    await QRCodeMakerService.AddQRCodeMakerAsync(qrCodeToSave);
+                    await logger.LogInformation("QRCodeMaker Added {QRCodeMaker}", qrCodeToSave);
+
+                    // Update the UI model to display the newly generated image
+                    _newQRCodeMaker.ImageURL = imageUrl;
+
+                    AddModuleMessage("QR Code Generated and Saved Successfully!", MessageType.Success);
+                    StateHasChanged();
+                }
+            }
+            else
+            {
+                AddModuleMessage("Please ensure all required fields are filled out correctly before generating the QR code.", MessageType.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Generating and Saving QR Code {Error}", ex.Message);
+            AddModuleMessage("An error occurred while generating and saving the QR code.", MessageType.Error);
+        }
+    }
+
+    // --- Form Data Models ---
+    private class VCardModel { public string FirstName { get; set; } public string LastName { get; set; } public string CellPhone { get; set; } public string WorkPhone { get; set; } public string Email { get; set; } public string Street { get; set; } public string City { get; set; } public string State { get; set; } public string Zip { get; set; } public string Website { get; set; } public string Business { get; set; } public string Title { get; set; } }
+    private class WiFiModel { public string SSID { get; set; } public string Password { get; set; } public string Authentication { get; set; } }
+    private class VEventModel { public string EventName { get; set; } public string Description { get; set; } public DateTime? StartDate { get; set; } public DateTime? EndDate { get; set; } public bool AllDayEvent { get; set; } public string Location { get; set; } }
+    private class EmailModel { public string Address { get; set; } public string Subject { get; set; } public string Message { get; set; } }
+    private class GoogleReviewModel { public string PlaceID { get; set; } public string CodeType { get; set; } }
+    private class TextModel { public string Text { get; set; } }
+    private class URLModel { public string URL { get; set; } }
+}

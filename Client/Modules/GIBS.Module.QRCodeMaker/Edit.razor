@@ -1,0 +1,196 @@
+@using Oqtane.Modules.Controls
+@using GIBS.Module.QRCodeMaker.Services
+@using GIBS.Module.QRCodeMaker.Models
+@using System.Linq
+
+@namespace GIBS.Module.QRCodeMaker
+@inherits ModuleBase
+@inject IQRCodeMakerService QRCodeMakerService
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<Edit> Localizer
+
+@if (PageState.Action == "Edit" && _selectedQRCodeMaker != null)
+{
+    <div class="card my-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Details for: @_selectedQRCodeMaker.Name</h5>
+            <button type="button" class="btn-close" aria-label="Close" @onclick="CloseDetailsView"></button>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <form @ref="form" class="@(validated ? " was-validated" : "needs-validation")" novalidate>
+                        <div class="row mb-3 align-items-center">
+                            <Label Class="col-sm-3" For="name" HelpText="Enter a friendly name for the QR Code" ResourceKey="Name">Name: </Label>
+                            <div class="col-sm-9">
+                                <input id="name" class="form-control" @bind="@_selectedQRCodeMaker.Name" required />
+                            </div>
+                        </div>
+                        <div class="row mb-3 align-items-center">
+                            <Label Class="col-sm-3" For="notes" ResourceKey="Notes">Notes: </Label>
+                            <div class="col-sm-9">
+                                <textarea class="form-control" @bind="@_selectedQRCodeMaker.Notes"></textarea>
+                               
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-success" @onclick="Save">@Localizer["Save"]</button>
+                        <NavLink class="btn btn-secondary" href="@NavigateUrl()">@Localizer["Cancel"]</NavLink>
+                    </form>
+                    <hr />
+                    <p><strong>@Localizer["Type"]:</strong> @_selectedQRCodeMaker.QR_CodeType</p>
+                    <p><strong>@Localizer["ContentData"]:</strong></p>
+                    <p style="white-space: pre-wrap;">@_selectedQRCodeMaker.ContentData</p>
+
+                    <AuditInfo CreatedBy="@_selectedQRCodeMaker.CreatedBy" CreatedOn="@_selectedQRCodeMaker.CreatedOn" ModifiedBy="@_selectedQRCodeMaker.ModifiedBy" ModifiedOn="@_selectedQRCodeMaker.ModifiedOn"></AuditInfo>
+                </div>
+                <div class="col-md-4 text-center">
+                    @if (!string.IsNullOrEmpty(_selectedQRCodeMaker.ImageURL))
+                    {
+                        <img src="@_selectedQRCodeMaker.ImageURL" class="img-fluid mb-2" />
+                        <p>
+                            <a href="@_selectedQRCodeMaker.ImageURL" download="@(_selectedQRCodeMaker.Name).png" class="btn btn-secondary mt-2">Download</a>
+                        </p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<hr class="my-4" />
+
+@* --- List of Saved QR Codes --- *@
+<h3>Saved QR Codes</h3>
+@if (_qrCodeMakers == null)
+{
+    <p><em>@Localizer["Loading..."]</em></p>
+}
+else if (_qrCodeMakers.Any())
+{
+    <Pager Items="@_qrCodeMakers">
+        <Header>
+        <th style="width: 1px;">&nbsp;</th>
+        <th style="width: 1px;">&nbsp;</th>
+        <th>@Localizer["Name"]</th>
+        <th>@Localizer["Notes"]</th>
+        <th>@Localizer["Type"]</th>
+        <th>@Localizer["QRCodeImage"]</th>
+        <th>@Localizer["CreatedOn"]</th>
+        </Header>
+        <Row>
+            <td><ActionLink Action="Edit" Parameters="@($"id=" + context.QRCodeMakerId.ToString())" ResourceKey="Edit" /></td>
+            <td><ActionDialog Header="Delete QR Code" Message="Are You Sure You Wish To Delete This QR Code?" Action="Delete" Security="SecurityAccessLevel.Edit" Class="btn btn-danger" OnClick="@(async () => await DeleteQRCodeMakerAsync(context))" ResourceKey="Delete" Id="@context.QRCodeMakerId.ToString()" /></td>
+            <td>@context.Name</td>
+            <td>@context.Notes</td>
+            <td>@context.QR_CodeType</td>
+            <td>
+                @if (!string.IsNullOrEmpty(context.ImageURL))
+                {
+                    <img src="@context.ImageURL" width="100" />
+                }
+            </td>
+            <td>@context.CreatedOn.ToString("g")</td>
+        </Row>
+    </Pager>
+}
+else
+{
+    <p>@Localizer["Message.DisplayNone"]</p>
+}
+
+@code {
+
+    public override SecurityAccessLevel SecurityAccessLevel => SecurityAccessLevel.Edit;
+
+    public override string Actions => "Add,Edit";
+
+    public override string Title => "Manage QRCodeMaker";
+
+    public override List<Resource> Resources => new List<Resource>()
+    {
+        new Resource { ResourceType = ResourceType.Stylesheet, Url = ModulePath() + "Module.css" }
+    };
+
+    private ElementReference form;
+    private bool validated = false;
+
+
+    private int _id;
+    private Models.QRCodeMaker _selectedQRCodeMaker;
+
+    private List<Models.QRCodeMaker> _qrCodeMakers;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadQRCodeMakers();
+
+            if (PageState.Action == "Edit" && PageState.QueryString.ContainsKey("id"))
+            {
+                _id = Int32.Parse(PageState.QueryString["id"]);
+                _selectedQRCodeMaker = await QRCodeMakerService.GetQRCodeMakerAsync(_id, ModuleState.ModuleId);
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Loading QRCodeMaker {QRCodeMakerId} {Error}", _id, ex.Message);
+            AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+        }
+    }
+
+    private async Task LoadQRCodeMakers()
+    {
+        var qrCodeMakers = await QRCodeMakerService.GetQRCodeMakersAsync(ModuleState.ModuleId);
+        _qrCodeMakers = qrCodeMakers.OrderByDescending(q => q.CreatedOn).ToList();
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            validated = true;
+            var interop = new Oqtane.UI.Interop(JSRuntime);
+            if (await interop.FormValid(form) && _selectedQRCodeMaker != null)
+            {
+                await QRCodeMakerService.UpdateQRCodeMakerAsync(_selectedQRCodeMaker);
+                await logger.LogInformation("QRCodeMaker Updated {QRCodeMaker}", _selectedQRCodeMaker);
+               
+                _selectedQRCodeMaker = null;
+
+                await LoadQRCodeMakers();
+            }
+            else
+            {
+                AddModuleMessage(Localizer["Message.SaveValidation"], MessageType.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Saving QRCodeMaker {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.SaveError"], MessageType.Error);
+        }
+    }
+
+    private async Task DeleteQRCodeMakerAsync(Models.QRCodeMaker qrCodeMaker)
+    {
+        try
+        {
+            await QRCodeMakerService.DeleteQRCodeMakerAsync(qrCodeMaker.QRCodeMakerId, ModuleState.ModuleId);
+            await logger.LogInformation("QRCodeMaker Deleted {QRCodeMaker}", qrCodeMaker);
+            await LoadQRCodeMakers();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Deleting QRCodeMaker {QRCodeMaker} {Error}", qrCodeMaker, ex.Message);
+            AddModuleMessage(Localizer["Message.DeleteError"], MessageType.Error);
+        }
+    }
+
+    private void CloseDetailsView()
+    {
+        _selectedQRCodeMaker = null;
+    }
+
+}
