@@ -60,7 +60,7 @@ namespace GIBS.Module.QRCodeMaker.Controllers
 
         // POST api/<controller>
         [HttpPost]
-        [Authorize(Policy = PolicyNames.EditModule)]
+        [Authorize(Policy = PolicyNames.ViewModule)]
         public async Task<Models.QRCodeMaker> Post([FromBody] Models.QRCodeMaker QRCodeMaker)
         {
             if (ModelState.IsValid && IsAuthorizedEntityId(EntityNames.Module, QRCodeMaker.ModuleId))

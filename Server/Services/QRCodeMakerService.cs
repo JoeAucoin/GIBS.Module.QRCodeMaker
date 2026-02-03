@@ -56,7 +56,7 @@ namespace GIBS.Module.QRCodeMaker.Services
 
         public Task<Models.QRCodeMaker> AddQRCodeMakerAsync(Models.QRCodeMaker QRCodeMaker)
         {
-            if (_userPermissions.IsAuthorized(_accessor.HttpContext.User, _alias.SiteId, EntityNames.Module, QRCodeMaker.ModuleId, PermissionNames.Edit))
+            if (_userPermissions.IsAuthorized(_accessor.HttpContext.User, _alias.SiteId, EntityNames.Module, QRCodeMaker.ModuleId, PermissionNames.View))
             {
                 QRCodeMaker = _QRCodeMakerRepository.AddQRCodeMaker(QRCodeMaker);
                 _logger.Log(LogLevel.Information, this, LogFunction.Create, "QRCodeMaker Added {QRCodeMaker}", QRCodeMaker);
