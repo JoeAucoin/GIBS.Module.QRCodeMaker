@@ -54,6 +54,16 @@ Click to generate and save your code instantly. Download the image and use it an
 
 ---
 
+## 🔄 .NET 10 Upgrade Notes
+
+This module has been upgraded to target **.NET 10**.
+
+- Ensure your Oqtane host and module dependencies are compatible with .NET 10.
+- Install the .NET 10 SDK on development and build environments.
+- If upgrading from an earlier .NET version, clean and rebuild the solution after restoring packages.
+
+---
+
 ## 📦 Installation
 
 1. Download the module from the [Oqtane Marketplace](#) or [GitHub Releases](#).

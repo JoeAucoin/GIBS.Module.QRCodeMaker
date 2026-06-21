@@ -9,9 +9,9 @@ namespace GIBS.Module.QRCodeMaker
         {
             Name = "QRCodeMaker",
             Description = "QR Code Maker Module for Oqtane",
-            Version = "1.0.0",
+            Version = "1.0.1",
             ServerManagerType = "GIBS.Module.QRCodeMaker.Manager.QRCodeMakerManager, GIBS.Module.QRCodeMaker.Server.Oqtane",
-            ReleaseVersions = "1.0.0",
+            ReleaseVersions = "1.0.0,1.0.1",
             Dependencies = "GIBS.Module.QRCodeMaker.Shared.Oqtane,QRCoder",
             PackageName = "GIBS.Module.QRCodeMaker" 
         };
